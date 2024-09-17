@@ -7,7 +7,7 @@
       const cleanUrl = url.replace(/^\/|\/$/g, '');
       const parts = cleanUrl.split('/');
       const category = parts[0] || '/';
-      const subcategory = parts[1] || '';
+      const subcategory = url;
       return { category, subcategory };
   }
 
