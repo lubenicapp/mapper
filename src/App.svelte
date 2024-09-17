@@ -65,8 +65,21 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(text, 'text/html');
 
+                // Get all the links in the document
                 const allLinks = Array.from(doc.querySelectorAll('a[href]'));
-                const fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
+
+                // Get links inside the div with role="banner" and footer
+                const bannerLinks = Array.from(doc.querySelectorAll('div[role="banner"] a[href]'));
+                const footerLinks = Array.from(doc.querySelectorAll('footer a[href]'));
+
+                // Combine the banner and footer links to exclude them
+                const excludedLinks = new Set([...bannerLinks, ...footerLinks]);
+
+                // Filter out the links that are inside banner and footer
+                const filteredLinks = allLinks.filter(link => !excludedLinks.has(link));
+
+                // Convert the remaining links to full URLs
+                const fullUrls = filteredLinks.map(link => new URL(link.getAttribute('href'), url).href);
 
                 return fullUrls;
             } catch (error) {
@@ -74,6 +87,7 @@
                 return [];
             }
         }
+
 
         cleanGraph() {
             const cleanedGraph = {};
@@ -112,6 +126,10 @@
 		<p>{lastLink}</p>
 	{:else if status === 'DONE'}
 		<input class="input" type="text" placeholder="search ex:blog" bind:value={searchTerm} />
+
+		<button class="button"> A-Z </button>
+		<button class="button"> 1-9 </button>
+
 	{:else if status == 'STOPPED'}
 		<input class="input" type="text" bind:value={mapper.root}>
 		<button class='button' on:click={() => {mapper.map()}}>Start Mapping</button>
