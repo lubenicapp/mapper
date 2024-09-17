@@ -1,0 +1,180 @@
+<script>
+
+		import {graphMock} from "./lib/graphData.js";
+		import Card from './lib/Card.svelte'
+
+    let status = 'STOPPED'
+    let graph = {}
+    let lastLink = ''
+    let searchTerm = ''
+
+    export class Mapper {
+        constructor(root) {
+            this.root = root;
+            this.graph = {};
+            this.seen = new Set();
+            this.sem = 50;
+            this.activeRequests = 0;
+            this.status = 'STOPPED'
+        }
+
+        async map() {
+            this.status = 'RUNNING';
+            status = this.status;
+            const toVisit = [this.root];
+
+            while (toVisit.length > 0) {
+                const page = toVisit.shift();
+                lastLink = page
+                if (this.seen.has(page)) {
+                    continue;
+                }
+
+                const links = await this.fetchLinks(page);
+                const cleanedLinks = links.map(link => link.split('#')[0]).map(link => link.split('?')[0]);
+                const internalLinks = cleanedLinks.filter(link => this.sameDomain(this.root, link));
+
+
+                if (!this.graph[page]) {
+                    this.graph[page] = [];
+                }
+                internalLinks.forEach(link => {
+                    this.graph[page].push(link);
+                    if (!this.seen.has(link)) {
+                        toVisit.push(link);
+                    }
+                });
+
+                this.seen.add(page);
+                console.log(page);
+            }
+
+            this.cleanGraph();
+            console.log("Finished mapping", this.graph);
+            this.status = 'DONE';
+            status = this.status;
+        }
+
+        async fetchLinks(url) {
+            try {
+                if (this.activeRequests >= this.sem) {
+                    await this.sleep(100);
+                }
+                this.activeRequests++;
+
+                const response = await fetch(url);
+                if (response.status !== 200) {
+                    console.error(`Could not fetch page at ${url}`);
+                    this.activeRequests--;
+                    return [];
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+
+                const allLinks = Array.from(doc.querySelectorAll('a[href]'));
+                const fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
+
+                this.activeRequests--;  // Release active request
+                return fullUrls;
+            } catch (error) {
+                console.error(`Error fetching links from ${url}:`, error);
+                this.activeRequests--;
+                return [];
+            }
+        }
+
+        cleanGraph() {
+            const cleanedGraph = {};
+
+            for (const [key, values] of Object.entries(this.graph)) {
+                const cleanedKey = key.replace(this.root, '');
+                const cleanedValues = values.map(link => link.replace(this.root, ''));
+                cleanedGraph[cleanedKey] = cleanedValues;
+            }
+
+            this.graph = cleanedGraph;
+            graph = this.graph
+        }
+
+        sameDomain(baseUrl, targetUrl) {
+            return new URL(baseUrl).origin === new URL(targetUrl).origin;
+        }
+
+        sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    }
+
+    const root = 'https://www.wobee.fr';
+    const mapper = new Mapper(root);
+
+		let backLinks = []
+		let highlight = '#'
+
+
+</script>
+
+<div class="container">
+	{#if status == 'RUNNING'}
+		<p>Mapping in progress...</p>
+		<p>{lastLink}</p>
+	{:else if status === 'DONE'}
+		<input class="input" type="text" placeholder="search ex:blog" bind:value={searchTerm} />
+	{:else if status == 'STOPPED'}
+		<input class="input" type="text" bind:value={mapper.root}>
+		<button class='button' on:click={() => {mapper.map()}}>Start Mapping</button>
+	{/if}
+
+</div>
+
+<div class="columns">
+	<div class="column is-10">
+		<div class="grid-container">
+			{#each Object.entries(graph) as [key, value]}
+				{#if searchTerm == '' || key.toLowerCase().includes(searchTerm.toLowerCase())}
+					<Card
+						url={key}
+						backlink_count={value.length}
+						on:click={()=>{backLinks = [...new Set(value)]; highlight = key}}
+						colored={highlight==key}
+					/>
+				{/if}
+			{/each}
+		</div>
+	</div>
+	<div class="column is-2 sticky-list">
+		<ul>
+			{#each backLinks as link}
+				<li class="mb-1"> { link } </li>
+			{/each}
+		</ul>
+	</div>
+</div>
+
+
+
+
+<style>
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid */
+        gap: 1rem; /* Gap between grid items */
+        padding: 1rem;
+    }
+
+    .input {
+		    width: 450px;
+    }
+
+    .sticky-list {
+        position: sticky;
+        top: 0; /* Stick to the top of the page */
+        max-height: 100vh; /* Ensures the sticky element doesn't overflow */
+        overflow-y: auto;  /* Adds scrolling inside the list if it's too long */
+        padding: 1rem;
+        background-color: white; /* Optional: Set a background color */
+        border-left: 1px solid #ddd; /* Optional: Add a border for separation */
+    }
+</style>
