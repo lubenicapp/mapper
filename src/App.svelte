@@ -13,8 +13,6 @@
             this.root = root;
             this.graph = {};
             this.seen = new Set();
-            this.sem = 50;
-            this.activeRequests = 0;
             this.status = 'STOPPED'
         }
 
@@ -57,15 +55,9 @@
 
         async fetchLinks(url) {
             try {
-                if (this.activeRequests >= this.sem) {
-                    await this.sleep(100);
-                }
-                this.activeRequests++;
-
                 const response = await fetch(url);
                 if (response.status !== 200) {
                     console.error(`Could not fetch page at ${url}`);
-                    this.activeRequests--;
                     return [];
                 }
 
@@ -76,11 +68,9 @@
                 const allLinks = Array.from(doc.querySelectorAll('a[href]'));
                 const fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
 
-                this.activeRequests--;  // Release active request
                 return fullUrls;
             } catch (error) {
                 console.error(`Error fetching links from ${url}:`, error);
-                this.activeRequests--;
                 return [];
             }
         }
@@ -159,8 +149,8 @@
 <style>
     .grid-container {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid */
-        gap: 1rem; /* Gap between grid items */
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
         padding: 1rem;
     }
 
@@ -170,11 +160,11 @@
 
     .sticky-list {
         position: sticky;
-        top: 0; /* Stick to the top of the page */
-        max-height: 100vh; /* Ensures the sticky element doesn't overflow */
-        overflow-y: auto;  /* Adds scrolling inside the list if it's too long */
+        top: 0;
+        max-height: 100vh;
+        overflow-y: auto;
         padding: 1rem;
-        background-color: white; /* Optional: Set a background color */
-        border-left: 1px solid #ddd; /* Optional: Add a border for separation */
+        background-color: white;
+        border-left: 1px solid #ddd;
     }
 </style>
