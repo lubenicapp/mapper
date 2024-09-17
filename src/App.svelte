@@ -14,13 +14,13 @@
             this.graph = {};
             this.seen = new Set();
             this.status = 'STOPPED'
+		        this.first = true;
         }
 
         async map() {
             this.status = 'RUNNING';
             status = this.status;
             const toVisit = [this.root];
-						let first = true
             while (toVisit.length > 0) {
                 const page = toVisit.shift();
                 lastLink = page
@@ -29,13 +29,7 @@
                 }
 
                 let links = []
-                if (first){
-		                links = await this.fetchLinks(page);
-                    first = false
-                }
-                else{
-                    links = await this.fetchLinksNoNav(page)
-                }
+		            links = await this.fetchLinks(page);
                 const cleanedLinks = links.map(link => link.split('#')[0]).map(link => link.split('?')[0]);
                 const internalLinks = cleanedLinks.filter(link => this.sameDomain(this.root, link));
 
@@ -52,6 +46,7 @@
 
                 this.seen.add(page);
                 console.log(page);
+                this.first = false;
             }
 
             this.cleanGraph();
@@ -73,43 +68,17 @@
                 const doc = parser.parseFromString(text, 'text/html');
 
                 const allLinks = Array.from(doc.querySelectorAll('a[href]'));
-                const fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
-
-                return fullUrls;
-            } catch (error) {
-                console.error(`Error fetching links from ${url}:`, error);
-                return [];
-            }
-        }
-
-        async fetchLinksNoNav(url) {
-            try {
-                const response = await fetch(url);
-                if (response.status !== 200) {
-                    console.error(`Could not fetch page at ${url}`);
-                    return [];
+                let fullUrls
+                if (!this.first){
+                    const bannerLinks = Array.from(doc.querySelectorAll('div[role="banner"] a[href]'));
+                    const footerLinks = Array.from(doc.querySelectorAll('footer a[href]'));
+                    const excludedLinks = new Set([...bannerLinks, ...footerLinks]);
+                    const filteredLinks = allLinks.filter(link => !excludedLinks.has(link));
+                    fullUrls = filteredLinks.map(link => new URL(link.getAttribute('href'), url).href);
                 }
-
-                const text = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(text, 'text/html');
-
-                // Get all the links in the document
-                const allLinks = Array.from(doc.querySelectorAll('a[href]'));
-
-                // Get links inside the div with role="banner" and footer
-                const bannerLinks = Array.from(doc.querySelectorAll('div[role="banner"] a[href]'));
-                const footerLinks = Array.from(doc.querySelectorAll('footer a[href]'));
-
-                // Combine the banner and footer links to exclude them
-                const excludedLinks = new Set([...bannerLinks, ...footerLinks]);
-
-                // Filter out the links that are inside banner and footer
-                const filteredLinks = allLinks.filter(link => !excludedLinks.has(link));
-
-                // Convert the remaining links to full URLs
-                const fullUrls = filteredLinks.map(link => new URL(link.getAttribute('href'), url).href);
-
+                else{
+                    fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
+                }
                 return fullUrls;
             } catch (error) {
                 console.error(`Error fetching links from ${url}:`, error);
@@ -154,10 +123,6 @@
 		<p>{lastLink}</p>
 	{:else if status === 'DONE'}
 		<input class="input" type="text" placeholder="search ex:blog" bind:value={searchTerm} />
-
-		<button class="button"> A-Z </button>
-		<button class="button"> 1-9 </button>
-
 	{:else if status == 'STOPPED'}
 		<input class="input" type="text" bind:value={mapper.root}>
 		<button class='button' on:click={() => {mapper.map()}}>Start Mapping</button>
