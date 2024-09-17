@@ -136,7 +136,7 @@
 				{#if searchTerm == '' || key.toLowerCase().includes(searchTerm.toLowerCase())}
 					<Card
 						url={key}
-						backlink_count={value.length}
+						backlink_count={[...new Set(value)].length}
 						on:click={()=>{backLinks = [...new Set(value)]; highlight = key}}
 						colored={highlight==key}
 					/>
