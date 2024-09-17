@@ -20,7 +20,7 @@
             this.status = 'RUNNING';
             status = this.status;
             const toVisit = [this.root];
-
+						let first = true
             while (toVisit.length > 0) {
                 const page = toVisit.shift();
                 lastLink = page
@@ -28,7 +28,14 @@
                     continue;
                 }
 
-                const links = await this.fetchLinks(page);
+                let links = []
+                if (first){
+		                links = await this.fetchLinks(page);
+                    first = false
+                }
+                else{
+                    links = await this.fetchLinksNoNav(page)
+                }
                 const cleanedLinks = links.map(link => link.split('#')[0]).map(link => link.split('?')[0]);
                 const internalLinks = cleanedLinks.filter(link => this.sameDomain(this.root, link));
 
@@ -65,6 +72,28 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(text, 'text/html');
 
+                const allLinks = Array.from(doc.querySelectorAll('a[href]'));
+                const fullUrls = allLinks.map(link => new URL(link.getAttribute('href'), url).href);
+
+                return fullUrls;
+            } catch (error) {
+                console.error(`Error fetching links from ${url}:`, error);
+                return [];
+            }
+        }
+
+        async fetchLinksNoNav(url) {
+            try {
+                const response = await fetch(url);
+                if (response.status !== 200) {
+                    console.error(`Could not fetch page at ${url}`);
+                    return [];
+                }
+
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+
                 // Get all the links in the document
                 const allLinks = Array.from(doc.querySelectorAll('a[href]'));
 
@@ -87,7 +116,6 @@
                 return [];
             }
         }
-
 
         cleanGraph() {
             const cleanedGraph = {};
